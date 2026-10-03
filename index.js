@@ -102,5 +102,5 @@ client.on('messageCreate', async message => {
         await Promise.all([channelsTask, rolesTask]);
     }
 });
+client.login(process.env.DISCORD_TOKEN);
 
-client.login('YOUR_BOT_TOKEN'); // ضع توكن البوت هنا
